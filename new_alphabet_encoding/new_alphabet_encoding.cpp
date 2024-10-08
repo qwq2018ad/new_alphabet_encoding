@@ -1,87 +1,46 @@
 ﻿#include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
 #include <time.h>
 
-#define MAX_LEN 256  // 字串最大長度
-#define INIT_CAP 4   // 初始哈希表容量
+#define MAX_LEN 100  // 字串最大長度
 #define BITS_PER_LETTER 2  // 每個字母的位元數（2位）
+#define ASCII_SIZE 128  // ASCII 查找表大小
 
-// 節點，用來存儲字母和它們對應的位元值
-typedef struct {
-    char letter;
-    unsigned long long bits;
-} Entry;
+// 查找表，用於將字母對應到位元編碼
+unsigned long long lookupTable[ASCII_SIZE];
 
-// 動態哈希表結構
-typedef struct {
-    Entry* entries;
-    int size;
-    int capacity;
-} HashTable;
-
-// 初始化哈希表
-void initHashTable(HashTable* table) {
-    table->entries = (Entry*)malloc(INIT_CAP * sizeof(Entry));
-    table->size = 0;
-    table->capacity = INIT_CAP;
-}
-
-// 擴充哈希表容量
-void expandHashTable(HashTable* table) {
-    table->capacity *= 2;
-    table->entries = (Entry*)realloc(table->entries, table->capacity * sizeof(Entry));
-}
-
-// 在哈希表中查找字母，若存在則返回對應的位元編碼
-unsigned long long findBits(HashTable* table, char letter) {
-    for (int i = 0; i < table->size; i++) {
-        if (table->entries[i].letter == letter) {
-            return table->entries[i].bits;
-        }
+// 初始化查找表
+void initLookupTable() {
+    for (int i = 0; i < ASCII_SIZE; i++) {
+        lookupTable[i] = -1;  // 初始化查找表中所有位置為 -1，表示尚未分配
     }
-    return -1;  // 如果未找到，返回 -1
 }
 
-// 在哈希表中插入新字母
-void insertLetter(HashTable* table, char letter, unsigned long long bits) {
-    if (table->size == table->capacity) {
-        expandHashTable(table);
-    }
-    table->entries[table->size].letter = letter;
-    table->entries[table->size].bits = bits;
-    table->size++;
-}
-
-// 編碼 DNA 字串
-unsigned long long encodeDNA(const char* str, HashTable* table) {
-    unsigned long long result = 0;
-    unsigned long long bitLength = 0;
-    unsigned long long nextBits = 0;  // 下一個可用的位元編碼
+// 編碼 DNA 字串，並自動分配新的字母位元
+void encodeDNA(const char* str, unsigned long long* nextBits) {
+    unsigned long long result = 0;  // 用來儲存最終的編碼結果
 
     for (int i = 0; str[i] != '\0'; i++) {
-        unsigned long long bits = findBits(table, str[i]);
+        unsigned char letter = (unsigned char)str[i];  // 讀取當前字母
+        unsigned long long bits = lookupTable[letter];  // 查找該字母的位元編碼
+
         if (bits == -1) {
-            // 如果字母未在表中，插入新字母並分配新位元
-            bits = nextBits;
-            insertLetter(table, str[i], bits);
-            nextBits++;
+            // 如果該字母尚未編碼，為它分配新位元
+            bits = (*nextBits)++;  // 分配下一個可用的位元編碼
+            lookupTable[letter] = bits;  // 更新查找表，記錄新字母的位元編碼
         }
 
-        // 將結果左移2位，然後加入新字母的位元
-        result = (result << BITS_PER_LETTER) | bits;
-        bitLength += BITS_PER_LETTER;
+        //// 將結果左移 BITS_PER_LETTER 位，然後加入該字母的位元編碼
+        //result = (result << BITS_PER_LETTER) | bits;
     }
 
-    return result;
 }
 
 int main() {
-    HashTable table;
-    initHashTable(&table);
+    initLookupTable();  // 初始化查找表
+    unsigned long long nextBits = 0;  // 下一個可用的位元編碼從 0 開始
 
     char dna[MAX_LEN];
-
     // 檔案名稱
     const char* filename1 = "Bible_A63_4M.txt";
     FILE* infile1;
@@ -113,21 +72,18 @@ int main() {
     fclose(infile1);
 
     clock_t start3_time = clock();
-    unsigned long long encoded = encodeDNA(T, &table);
-
+    encodeDNA(T, &nextBits);  // 編碼 DNA 字串
     clock_t end3_time = clock();
-    printf("編碼結果：%llu\n", encoded);
 
     double ttest = (double)(end3_time - start3_time) / CLOCKS_PER_SEC;
 
-
-    // 輸出哈希表中的字母及其對應的位元編碼
-    printf("哈希表內容：\n");
-    for (int i = 0; i < table.size; i++) {
-        printf("字母: %c, 位元編碼: %llu\n", table.entries[i].letter, table.entries[i].bits);
+    // 輸出查找表中的字母及其對應的位元編碼
+    printf("查找表內容：\n");
+    for (int i = 0; i < ASCII_SIZE; i++) {
+        if (lookupTable[i] != -1) {
+            printf("字母: %c, 位元編碼: %llu\n", i, lookupTable[i]);
+        }
     }
-    printf("time：%f", ttest);
-    // 釋放記憶體
-    free(table.entries);
+    printf("time：%f\n", ttest);
     return 0;
 }
